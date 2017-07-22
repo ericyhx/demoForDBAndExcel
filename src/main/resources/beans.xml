@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:context="http://www.springframework.org/schema/context"
+	   xmlns:tx="http://www.springframework.org/schema/tx"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:jpa="http://www.springframework.org/schema/data/jpa"
+	   xmlns:aop="http://www.springframework.org/schema/aop"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+        http://www.springframework.org/schema/data/jpa http://www.springframework.org/schema/data/jpa/spring-jpa-1.0.xsd
+        http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop.xsd">
+	<description>spring业务层配置</description>
+    <context:component-scan base-package="com.dasun.rds" />
+	<!-- 使用基于注解的方式配置事务 -->
+	<tx:annotation-driven transaction-manager="transactionManager" proxy-target-class="true" />
+	<!-- 加载配置文件 -->
+      <context:property-placeholder	location="classpath:application.properties"
+		system-properties-mode="OVERRIDE" ignore-unresolvable="true" />
+
+	  	<bean id="dataSource1" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+			<property name="driverClass" value="${oracle.jdbc.driverClassName}"/>
+			<property name="jdbcUrl" value="${oracle.jdbc.url}"/>
+			<property name="user" value="${oracle.jdbc.username}"/>
+			<property name="password" value="${oracle.jdbc.password}"/>
+			<property name="initialPoolSize" value="${oracle.jdbc.initialPoolSize}" />
+			<property name="maxPoolSize" value="${oracle.jdbc.maxPoolSize}" />
+			<property name="minPoolSize" value="${oracle.jdbc.minPoolSize}" />
+			<property name="maxIdleTime" value="${oracle.jdbc.maxIdleTime}" />
+		</bean>
+	<bean id="dataSource2" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<property name="driverClass" value="${oracle.jdbc.driverClassName}"/>
+		<property name="jdbcUrl" value="${oracle.jdbc.url2}"/>
+		<property name="user" value="${oracle.jdbc.username2}"/>
+		<property name="password" value="${oracle.jdbc.password2}"/>
+		<property name="initialPoolSize" value="${oracle.jdbc.initialPoolSize}" />
+		<property name="maxPoolSize" value="${oracle.jdbc.maxPoolSize}" />
+		<property name="minPoolSize" value="${oracle.jdbc.minPoolSize}" />
+		<property name="maxIdleTime" value="${oracle.jdbc.maxIdleTime}" />
+	</bean>
+	<bean id="dataSource" class="com.dasun.rds.tools.dataSourceUtil.DynamicDataSource">
+		<property name="targetDataSources">
+			<map key-type="java.lang.String">
+				<entry key="user" value-ref="dataSource2"/>
+				<entry key="wms" value-ref="dataSource2"/>
+			</map>
+		</property>
+		<property name="defaultTargetDataSource" ref="dataSource2"/>
+	</bean>
+	<!--指定实现JPA的适配器-->
+	<bean id="hibernateJpaVendorAdapter" class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter">
+		<property name="databasePlatform" value="org.hibernate.dialect.Oracle12cDialect" />
+	</bean>
+	<!-- Spring Data Jpa扫描配置 -->
+	<jpa:repositories base-package="com.dasun.rds"></jpa:repositories>
+	<!-- JPA实体管理工厂的配置 -->
+	<bean id="entityManagerFactory"	class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean" destroy-method="destroy">
+		<property name="dataSource" ref="dataSource" />
+		<property name="jpaVendorAdapter" ref="hibernateJpaVendorAdapter"/>
+		<property name="packagesToScan" value="com.dasun.rds"/>
+		<property name="jpaPropertyMap">
+			<map>
+				<entry key="javax.persistence.schema-generation.database.action" value="none"/>
+			</map>
+		</property>
+		<!--指定JPA属性，如hibernate中指定是否显示sql语句-->
+		<property name="jpaProperties">
+			<props>
+				<prop key="hibernate.dialect">org.hibernate.dialect.Oracle12cDialect</prop>
+				<prop key="hibernate.ejb.naming_strategy">org.hibernate.cfg.DefaultNamingStrategy</prop>
+				<prop key="hibernate.cache.provider_class">org.hibernate.cache.NoCacheProvider</prop>
+				<prop key="hibernate.show_sql">false</prop>
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+			</props>
+		</property>
+	</bean>
+	<!-- Jpa 事务配置 -->
+	<bean id="transactionManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+		<property name="entityManagerFactory" ref="entityManagerFactory"/>
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+ 	<bean id="dataSourceAspect" class="com.dasun.rds.tools.dataSourceUtil.DataSourceAspect"/>
+	<aop:config>
+		<aop:aspect ref="dataSourceAspect">
+			<!-- 拦截所有service方法 -->
+			 <aop:pointcut id="dataSourcePointcut" expression="execution(* com.dasun.rds.service.*.*(..))"/>
+			 <aop:before pointcut-ref="dataSourcePointcut" method="intercept" />
+		 </aop:aspect>
+	 </aop:config>
+	<!--&lt;!&ndash; 启动socket客户端 &ndash;&gt;-->
+	<bean id="RDSStart" class="com.dasun.rds.RDSStartApp" scope="singleton" init-method="start" destroy-method="stop">
+
+	</bean>
+</beans>
